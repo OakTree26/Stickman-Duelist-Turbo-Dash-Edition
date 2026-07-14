@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>StickMan Duelist </title>
+    <style>
+        /* CSS and UI styling for the Stickman Duelist game */
+        * { box-sizing: border-box; }
+        body { 
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #020202;
+            font-family: 'courier new', monospace;
+            overflow: hidden;
+            color: white;
+            user-select: none;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 80px rgba(0, 100, 255, 0.2);
+            border-radius: 4px;
+        }
+        canvas {
+            background: #000;
+            border: 4px solid #222;
+            display: block;
+            image-rendering: pixelated;
+        }
+        /* CRT Scanline Overlay for retro arcade feel */
+        #scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(25, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px 30px;
+            z-index: 20;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+        .player-ui {
+            width: 38%;
+            display: flex;
+            flex-direction: column;
+        }
+        .p2-ui {
+            align-items: flex-end;
+        }
+        .name {
+            font-size: 26px;
+            font-weight: bold;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            text-shadow: 3px 3px 0 #000;
+            letter-spacing: 2px;
+        }
+        .bar-container {
+            width: 100%;
+            height: 28px;
+            background: #111;
+            border: 3px solid #fff;
+            position: relative;
+            margin-bottom: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #cc0000, #ff2a2a);
+            transition: width 0.1s linear;
+        }
+        .stamina-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #aa8800, #ffcc00);
+            transition: width 0.1s linear;
+        }
+        .stamina-container {
+            height: 14px;
+            border-color: #777;
+            border-width: 2px;
+        }
+        .center-text {
+            text-align: center;
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 40px;
+            border: 2px solid #333;
+        }
+        h1 {
+            font-size: 48px;
+            margin: 0;
+            text-shadow: 5px 5px 0 #000;
+            letter-spacing: 6px;
+        }
+        h2 {
+            font-size: 30px;
+            margin: 15px 0;
+            text-shadow: 2px 2px 0 #000;
+        }
+        .controls-info {
+            font-size: 18px;
+            margin-top: 20px;
+            color: #ddd;
+            text-shadow: 1px 1px 0 #000;
+            line-height: 1.5;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .combo-text {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffaa00;
+            font-style: italic;
+            text-shadow: 3px 3px 0 #000;
+            margin-top: 10px;
+            transition: transform 0.1;
+        }
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1;
+                text-shadow: 0 0 20px #00ff88;
+            }
+            50% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas" width="1200" height="700"></canvas>
+        <div id="scanlines"></div>
+        <div id="ui-layer">
+            <div class="header hidden" id="hud">
+                <div class="player-ui p1-ui">
+                    <div class="name" style="color: #00e5ff;">PLAYER 1</div>
+                    <div class="bar-container"><div class="health-fill" id="p1-hp"></div></div>
+                    <div class="bar-container stamina-container"><div class="stamina-fill" id="p1-stam"></div></div>
+                    <div class="combo-text" id="p1-combo"></div>
+                </div>
+                <div class="player-ui p2-ui">
+                    <div class="name" style="color: #ff3366;">PLAYER 2</div>
+                    <div class="bar-container" style="display:flex; justify-content:flex-end;"><div class="health-fill" id="p2-hp"></div></div>
+                    <div class="bar-container stamina-container" style="display:flex; justify-content:flex-end;"><div class="stamina-fill" id="p2-stam"></div></div>
+                    <div class="combo-text" id="p2-combo"></div>
+                </div>
+            </div>
+
+            <div class="center-text" id="menu-screen">
+                <h1>STICKMAN DUELIST</h1>
+                <h2 style="color: #ffaa00;">TURBO DASH EDITION</h2>
+                <h2 style="color: #00ff88; animation: blink 1.5s infinite;">PRESS [SPACE] OR [GAMEPAD A] TO START</h2>
+                <div style="display: flex; justify-content: space-around; margin-top: 40px; text-align: left;">
+                    <div class="controls-info">
+                        <strong style="color:#00e5ff; font-size:22px;">PLAYER 1 (Keyboard/Pad 1)</strong><br><br>
+                        Move: W, A, S, D<br>
+                        Attack: SPACE<br>
+                        Dash: Q<br>
+                        Block: E<br>
+                    </div>
+                    <div class="controls-info">
+                        <strong style="color:#ff3366; font-size:22px;">PLAYER 2 (Keyboard/Pad 2)</strong><br><br>
+                        Move: I, J, K, L<br>
+                        Attack: ENTER<br>
+                        Dash: U<br>
+                        Block: O<br>
+                    </div>
+                </div>
+            </div>
+
+            <div class="center-text hidden" id="game-over-screen">
+                <h1 id="winner-text" style="font-size: 80px;">WINNER</h1>
+                <h2 style="color: #00ff88; animation: blink 1.5s infinite;">PRESS [SPACE] TO REMATCH</h2>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /** ====================
+         * STICKMAN DUELIST - TURBO DASH EDITION
+         * Features:
+         * - Two-player stickman dueling game with keyboard and gamepad support
+         * - Health and stamina bars with combo tracking
+         * - Retro CRT scanline effect for arcade feel
+         * - Responsive UI with player names and controls info
+         * - Screen Shake & Dynamic Camera
+         * ===================== */
+
+         // --- DOM Content ---
+         const canvas = document.getElementById('game-canvas');
+         const ctx = canvas.getContext('2d');
+         const UI = {
+            hud: document.getElementById('hud'),
+            menu: document.getElementById('menu-screen'),
+            gameOver: document.getElementById('game-over-screen'),
+            winnerText: document.getElementById('winner-text'),
+            bars: {
+                p1hp: document.getElementById('p1-hp'),
+                p1st: document.getElementById('p1-stam'),
+                p2hp: document.getElementById('p2-hp'),
+                p2st: document.getElementById('p2-stam'),
+            },
+            combos: {
+                p1: document.getElementById('p1-combo'),
+                p2: document.getElementById('p2-combo'),
+            }
+         };
+
+         /** ====================
+          * Vector2 Math Library
+          * Essential for rendering, physics, and camera lerping.
+          * ===================== */
+         class Vector2 {
+            constructor(x = 0, y = 0) {
+                this.x = x;
+                this.y = y;
+            }
+            add(v) {
+                return new Vector2(this.x + v.x, this.y + v.y);
+            }
+            subtract(v) {
+                return new Vector2(this.x - v.x, this.y - v.y);
+            }
+            multiply(n) {
+                return new Vector2(this.x * n, this.y * n);
+            }
+            divide(n) {
+                return new Vector2(this.x / n, this.y / n);
+            }
+            magnitude() {
+                return Math.sqrt(this.x * this.x + this.y * this.y);
+            }
+            normalize() {
+                let m = this.magnitude();
+                return m === 0 ? new Vector2(0, 0) : this.divide(m);
+            }
+            distance(v) {
+                return this.subtract(v).magnitude();
+            }
+            lerp(v, t) {
+                return new Vector2(
+                    this.x + (v.x - this.x) * t,
+                    this.y + (v.y - this.y) * t);
+            }
+            copy() {
+                return new Vector2(this.x, this.y);
+            }
+        }
+
+        // --- Game Configuration ---
+        const CONFIG = {
+            GRAVITY: 0.65,
+            JUMP_FORCE: -17,
+            MOVE_SPEED: 7.5,
+            DASH_SPEED: 26,
+            MAX_HP: 100,
+            MAX_STAM: 100,
+            STAM_REGEN: 0.45,
+            DASH_COST: 25,
+            ATTACK_COST: 15,
+            BLOCK_COST: 0.4,
+            GROUND_Y: 550,
+            LEFT_BOUND: -1500,
+            RIGHT_BOUND: 2500,
+            CHAR_SCALE: 1.6,
+            HIT_STUN_FRAMES: 16,
+            BLOCK_STUN_FRAMES: 10,
+            CAMERA_SMOOTHING: 0.08,
+            DASH_DURATION: 14 // Frames dash lasts
+        };
+
+        const WEAPONS = [
+            {
+                name: "Sword",
+                damage: 12,
+                reach: 110,
+                attackFrames: 18,
+                stamina: 10,
+                knockback: 4,
+                color: "#c0c0c0"
+            },
+            {
+                name: "Katana",
+                damage: 20,
+                reach: 140,
+                attackFrames: 14,
+                stamina: 8,
+                knockback: 3,
+                color: "#ffffff"
+            },
+            {
+                name: "Knife",
+                damage: 7,
+                reach: 65,
+                attackFrames: 8,
+                stamina: 4,
+                knockback: 2,
+                color: "#bbbbbb"
+            },
+            {
+                name: "Steel Rod",
+                damage: 15,
+                reach: 90,
+                attackFrames: 22,
+                stamina: 12,
+                knockback: 8,
+                color: "#777777"
+            },
+            {
+                name: "Med Kit",
+                heal: 35,
+                color: "lime"
+            }
+        ];
+
+        const GAME_STATES = {
+            MENU: 0,
+            PLAYING: 1,
+            GAME_OVER: 2
+        };
+        let currentState = GAME_STATES.MENU;
+        let frameCount = 0;
+        let screenShake = 0; // Global screen shake variable
+
+        /** ====================
+         * Input Manager (Keyboard + Gamepad Support)
+         * Maps Physical keys and controller buttons to logical game actions.
+         * ===================== */
+        class InputManager {
+            constructor() {
+                this.keys = {};
+                this.previousKeys = {};
+                this.gamepadState = { 1: {}, 2: {} };
+                this.prevGamepadState = { 1: {}, 2: {} };
+
+                window.addEventListener("keydown", (e) => {
+                    this.keys[e.code] = true;
+                    this.checkGlobalInputs(e.code);
+                });
+                window.addEventListener("keyup", (e) => this.keys[e.code] = false);
+            }
+
+            checkGlobalInputs(code) {
+                if (code === "Space") {
+                    if (currentState === GAME_STATES.MENU) startGame();
+                    else if (currentState === GAME_STATES.GAME_OVER) resetGame();
+                }
+            }
+
+            update() {
+                this.previousKeys = { ...this.keys };
+                this.prevGamepadState = JSON.parse(JSON.stringify(this.gamepadState));
+                this.pollGamepads();
+            }
+
+            pollGamepads() {
+                const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+                for (let i = 0; i < 2; i++) {
+                    let pad = pads[i];
+                    let pId = i + 1;
+                    if (pad) {
+                        this.gamepadState[pId] = {
+                            up: pad.buttons[12]?.pressed || pad.axes[1] < -0.5,
+                            down: pad.buttons[13]?.pressed || pad.axes[1] > 0.5,
+                            left: pad.buttons[14]?.pressed || pad.axes[0] < -0.5,
+                            right: pad.buttons[15]?.pressed || pad.axes[0] > 0.5,
+                            attack: pad.buttons[2]?.pressed || pad.buttons[0]?.pressed, // X or A
+                            dash: pad.buttons[5]?.pressed || pad.buttons[1]?.pressed,   // RB or B
+                            block: pad.buttons[4]?.pressed || pad.buttons[6]?.pressed   // LB or LT
+                        };
+                        
+                        // Gamepad Global Start
+                        if (pad.buttons[9]?.pressed || pad.buttons[0]?.pressed) {
+                            if (currentState === GAME_STATES.MENU) startGame();
+                            else if (currentState === GAME_STATES.GAME_OVER) resetGame();
+                        }
+                    } else {
+                        this.gamepadState[pId] = {}; // Clear if disconnected
+                    }
+                }
+            }
+
+            isActionDown(playerIndex, keyBind, actionName) {
+                return !!this.keys[keyBind] || !!this.gamepadState[playerIndex]?.[actionName];
+            }
+
+            isActionPressed(playerIndex, keyBind, actionName) {
+                let keyJustPressed = this.keys[keyBind] && !this.previousKeys[keyBind];
+                let padJustPressed = this.gamepadState[playerIndex]?.[actionName] && !this.prevGamepadState[playerIndex]?.[actionName];
+                return keyJustPressed || padJustPressed;
+            }
+        }
+        const Input = new InputManager();
+
+        /** ====================
+         * Audio Synthesizer (Web Audio API)
+         * Generates sound without external files
+         * ==================== */
+        class AudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.initialized = false;
+            }
+            init() {
+                if (!this.initialized) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                    this.initialized = true;
+                }
+            }
+            playTone(freq, type, duration, vol, slideFreq = null) {
+                if (!this.initialized || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, this.ctx.currentTime + duration);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + duration);
+            }
+            // SFX Presets
+            jump() { this.playTone(200, 'sine', 0.3, 0.3, 600); }
+            dash() { this.playTone(800, 'sine', 0.2, 0.2, 100); }
+            swing() { this.playTone(180, 'triangle', 0.15, 0.3, 50); }
+            hit(heavy = false) { this.playTone(heavy ? 80 : 120, 'square', heavy ? 0.3 : 0.15, heavy ? 0.7 : 0.5, 40); }
+            block() { this.playTone(600, 'sawtooth', 0.1, 0.4); }
+            death() { this.playTone(100, 'sawtooth', 1.0, 0.8, 10); }
+            uiBlip() { this.playTone(1200, 'square', 0.1, 0.1); }
+        }
+        const Audio = new AudioEngine();
+
+        /** ====================
+         * Particle % VFX Manager
+         * Handles dust, blood, sparks, speedlines, and floating combat text
+         * ==================== */
+        class Particle {
+            constructor(x, y, vx, vy, color, life, size, gravity = 0.5, friction = 0.95) {
+                this.pos = new Vector2(x, y);
+                this.vel = new Vector2(vx, vy);
+                this.color = color;
+                this.maxLife = life;
+                this.life = life;
+                this.size = size;
+                this.gravity = gravity;
+                this.friction = friction;
+            }
+            update() {
+                this.vel.y += this.gravity;
+                this.vel.x *= this.friction;
+                this.vel.y *= this.friction;
+                this.pos = this.pos.add(this.vel);
+                this.life--;
+                this.size = Math.max(0, this.size * 0.95);
+            }
+            draw(ctx) {
+                ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.pos.x, this.pos.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class FloatingText {
+            constructor(x, y, text, color, size = 20) {
+                this.pos = new Vector2(x, y);
+                this.vel = new Vector2((Math.random() - 0.5) * 2, -4 - Math.random() * 2);
+                this.text = text;
+                this.color = color;
+                this.life = 45;
+                this.maxLife = 45;
+                this.size = size;
+            }
+            update() {
+                this.pos = this.pos.add(this.vel);
+                this.vel.y += 0.15; // Gravity
+                this.life--;
+            }
+            draw(ctx) {
+                ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
+                ctx.fillStyle = this.color;
+                ctx.font = `900 ${this.size}px Courier New`;
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 4;
+                ctx.strokeText(this.text, this.pos.x, this.pos.y);
+                ctx.fillText(this.text, this.pos.x, this.pos.y);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class VFXManager {
+            constructor() {
+                this.particles = [];
+                this.texts = [];
+                this.speedLines = [];
+            }
+            spawnHit(x, y, color, heavy = false) {
+                let count = heavy ? 40 : 20;
+                for (let i = 0; i < count; i++) {
+                    let vx = (Math.random() - 0.5) * (heavy ? 25 : 15);
+                    let vy = (Math.random() - 0.5) * (heavy ? 25 : 15);
+                    this.particles.push(new Particle(x, y, vx, vy, color, 25 + Math.random() * 20, Math.random() * 6 + 3));
+                    // White hot sparks
+                    if (Math.random() > 0.7) {
+                        this.particles.push(new Particle(x, y, vx*1.5, vy*1.5, "#ffffff", 15, 3, 0.2, 0.9));
+                    }
+                }
+            }
+            spawnBlock(x, y) {
+                for (let i = 0; i < 20; i++) {
+                    let vx = (Math.random() - 0.5) * 12;
+                    let vy = (Math.random() - 0.5) * 12;
+                    this.particles.push(new Particle(x, y, vx, vy, "#00e5ff", 20, Math.random() * 5 + 2, 0.1, 0.85));
+                }
+            }
+            spawnDust(x, y, big = false) {
+                let count = big ? 20 : 8;
+                for (let i =0; i < count; i++) {
+                    let vx = (Math.random() - 0.5) * (big ? 10 : 5);
+                    let vy = -Math.random() * (big ? 5 : 3);
+                    this.particles.push(new Particle(x, y, vx, vy, "#556677", 35, Math.random() * 5 + 3, -0.05, 0.9));
+                }
+            }
+            addText(x, y, text, color, size) {
+                this.texts.push(new FloatingText(x, y, text, color, size));
+            }
+            triggerSpeedLines(facing) {
+                for (let i = 0; i < 30; i++) {
+                    this.speedLines.push({
+                        y: Math.random() * canvas.height,
+                        length: Math.random() * 200 + 100,
+                        speed: (Math.random() * 20 + 30) * -facing,
+                        alpha: Math.random() * 0.5 + 0.2,
+                        life: 10
+                    });
+                }
+            }
+            update() {
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    this.particles[i].update();
+                    if (this.particles[i].life <= 0) this.particles.splice(i, 1);
+                }
+                for (let i = this.texts.length - 1; i >= 0; i--) {
+                    this.texts[i].update();
+                    if (this.texts[i].life <= 0) this.texts.splice(i, 1);
+                }
+                for (let i = this.speedLines.length - 1; i >= 0; i--) {
+                    this.speedLines[i].life--;
+                    if (this.speedLines[i].life <= 0) this.speedLines.splice(i, 1);
+                }
+            }
+            drawWorld(ctx) {
+                this.particles.forEach(p => p.draw(ctx));
+                this.texts.forEach(t => t.draw(ctx));
+            }
+            drawUI(ctx) {
+                // Draw cinematic speed lines on the UI layer (ignores camera)
+                if (this.speedLines.length > 0) {
+                    ctx.save();
+                    ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform to screen space
+                    this.speedLines.forEach(line => {
+                        ctx.globalAlpha = line.alpha * (line.life / 10);
+                        ctx.fillStyle = "#fff";
+                        ctx.fillRect(canvas.width/2 + (line.life * line.speed), line.y, line.length, 2);
+                    });
+                    ctx.restore();
+                }
+            }
+            clear() {
+                this.particles = [];
+                this.texts = [];
+                this.speedLines = [];
+            }
+        }
+        const VFX = new VFXManager();
+
+        /** ====================
+         * Environment & Parallax Scenery
+         * Handles rendering f background mountains, clouds, trees, and platforms.
+         * ==================== */
+        class Environment {
+            constructor() {
+                this.platforms = [
+                    { x: -500, y: 350, w: 300, h: 25 },
+                    { x: 150, y: 350, w: 250, h: 25 },
+                    { x: 550, y: 220, w: 200, h: 25 },
+                    { x: 900, y: 350, w: 250, h: 25 },
+                    { x: 1500, y: 300, w: 300, h: 25 }
+                ];
+                
+                // Clouds
+                this.clouds = Array.from({length: 25}, () => ({
+                    x: Math.random() * 5000 - 2000,
+                    y: Math.random() * 300 - 100,
+                    size: Math.random() * 2 + 1,
+                    speed: Math.random() * 0.5 + 0.1
+                }));
+
+                // Parallax Mountains
+                this.mountains = [];
+                let mx = -2000;
+                while (mx < 3000) {
+                    this.mountains.push({ x: mx, w: Math.random()*500 + 400, h: Math.random()*300 + 200 });
+                    mx += Math.random() * 300 + 200;
+                }
+
+                // Foreground Trees
+                this.trees = [];
+                for(let i = -1500; i < 2500; i += Math.random() * 200 + 150) {
+                    this.trees.push({ x: i, size: Math.random() * 0.6 + 0.7 });
+                }
+            }
+            
+            update() {
+                // Slowly drift clouds
+                this.clouds.forEach(c => {
+                    c.x += c.speed;
+                    if (c.x > 3000) c.x = -2000;
+                });
+            }
+
+            draw(cameraX) {
+                // Background Sky
+                let grad = ctx.createLinearGradient(0, -600, 0, CONFIG.GROUND_Y);
+                grad.addColorStop(0, "#080c14");
+                grad.addColorStop(0.5, "#1c2638");
+                grad.addColorStop(1, "#2a3b54");
+                ctx.fillStyle = grad;
+                ctx.fillRect(-3000, -2000, 7000, 5000);
+
+                // Moon
+                ctx.fillStyle = "#fff";
+                ctx.beginPath();
+                ctx.arc(800 + cameraX * 0.98, 50, 60, 0, Math.PI * 2);
+                ctx.fill();
+                // Moon Glow
+                ctx.globalAlpha = 0.2;
+                ctx.arc(800 + cameraX * 0.98, 50, 100, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+
+                // Clouds (Parallax 0.9)
+                ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+                this.clouds.forEach(c => {
+                    ctx.beginPath();
+                    ctx.arc(c.x + cameraX * 0.9, c.y, 40 * c.size, 0, Math.PI*2);
+                    ctx.arc(c.x + 40*c.size + cameraX * 0.9, c.y + 10, 30 * c.size, 0, Math.PI*2);
+                    ctx.arc(c.x - 30*c.size + cameraX * 0.9, c.y + 10, 25 * c.size, 0, Math.PI*2);
+                    ctx.fill();
+                });
+
+                // Mountains (Parallax 0.7)
+                ctx.fillStyle = "#111824";
+                ctx.beginPath();
+                ctx.moveTo(-2000 + cameraX * 0.7, CONFIG.GROUND_Y);
+                this.mountains.forEach(m => {
+                    ctx.lineTo(m.x + m.w/2 + cameraX * 0.7, CONFIG.GROUND_Y - m.h);
+                    ctx.lineTo(m.x + m.w + cameraX * 0.7, CONFIG.GROUND_Y);
+                });
+                ctx.fill();
+
+                // Trees (Parallax 0.4)
+                ctx.strokeStyle = "#0a0f17";
+                ctx.lineWidth = 18;
+                ctx.lineCap = "round";
+                this.trees.forEach(t => {
+                    ctx.save();
+                    ctx.translate(t.x + cameraX * 0.4, CONFIG.GROUND_Y);
+                    ctx.scale(t.size, t.size);
+                    ctx.beginPath();
+                    // Trunk
+                    ctx.moveTo(0, 0); ctx.lineTo(0, -180);
+                    // Branches
+                    ctx.moveTo(0, -120); ctx.lineTo(-50, -170);
+                    ctx.moveTo(0, -80); ctx.lineTo(60, -130);
+                    ctx.stroke();
+                    ctx.restore();
+                });
+
+                // Ground Terrain
+                ctx.fillStyle = "#151f2d";
+                ctx.fillRect(CONFIG.LEFT_BOUND, CONFIG.GROUND_Y, CONFIG.RIGHT_BOUND - CONFIG.LEFT_BOUND, 800);
+                // Top dirt trim
+                ctx.fillStyle = "#253b52";
+                ctx.fillRect(CONFIG.LEFT_BOUND, CONFIG.GROUND_Y, CONFIG.RIGHT_BOUND - CONFIG.LEFT_BOUND, 15);
+
+                // Platforms
+                this.platforms.forEach(p => {
+                    ctx.fillStyle = "#1d2b3d";
+                    ctx.fillRect(p.x, p.y, p.w, p.h);
+                    ctx.strokeStyle = "#385375";
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(p.x, p.y, p.w, p.h);
+                });
+            }
+        }
+        const World = new Environment();
+
+        class WeaponManager {
+            constructor() {
+                this.weapons = [];
+                this.spawnTimer = 0;
+            }
+
+            update() {
+                this.spawnTimer++;
+
+                // Spawn every 2 seconds (120 frames)
+                if (this.spawnTimer >= 120) {
+                    this.spawnTimer = 0;
+                    this.spawnWeapon();
+                }
+
+                for (let i = this.weapons.length - 1; i >= 0; i--) {
+                    let weapon = this.weapons[i];
+
+                    // Gravity
+                    weapon.yVel += 0.5;
+                    weapon.y += weapon.yVel;
+
+                    // Land on ground
+                    if (weapon.y > CONFIG.GROUND_Y - 20) {
+                        weapon.y = CONFIG.GROUND_Y - 20;
+                        weapon.yVel = 0;
+                    }
+
+                    // Pickup by Player 1
+                    if (
+                        Math.abs(p1.pos.x - weapon.x) < 40 &&
+                        Math.abs(p1.pos.y - weapon.y) < 60
+                    ){
+                        if (weapon.data.heal) {
+                            p1.hp = Math.min(CONFIG.MAX_HP, p1.hp + weapon.data.heal);
+                        } else {
+                            p1.currentWeapon = weapon.data;
+                        }
+                        this.weapons.splice(i, 1);
+                        continue;
+                    }
+
+                    // Pickup by Player 2
+                    if (
+                        Math.abs(p2.pos.x - weapon.x) < 40 &&
+                        Math.abs(p2.pos.y - weapon.y) < 60
+                    ){
+                        if (weapon.data.heal) {
+                            p2.hp = Math.min(CONFIG.MAX_HP, p2.hp + weapon.data.heal);
+                        } else {
+                            p2.currentWeapon = weapon.data;
+                        }
+                        this.weapons.splice(i, 1);
+                        continue;
+                    }
+                }
+            }
+            spawnWeapon() {
+                const random = 
+                    WEAPONS[Math.floor(Math.random()* WEAPONS.length)];
+
+                this.weapons.push({
+                    x: Math.random() *
+                        (CONFIG.RIGHT_BOUND - CONFIG.LEFT_BOUND)
+                        + CONFIG.LEFT_BOUND,
+                    y: -300,
+                    yVel: 0,
+                    data: random
+                });
+            }
+
+            draw(ctx) {
+                this.weapons.forEach(weapon => {
+                    ctx.save();
+                    ctx.translate(weapon.x, weapon.y);
+                    switch (weapon.data.name) {
+                        case "Sword":
+                            ctx.scale(1,1.7);
+                            // Blade
+                            ctx.fillStyle = "#dddddd";
+                            ctx.fillRect(-3,-30,6,40);
+                            // Handle
+                            ctx.fillStyle = "#8b5a2b";
+                            ctx.fillRect(-4,10,8,12);
+                            // Guard
+                            ctx.fillStyle = "#caa000";
+                            ctx.fillRect(-12,8,24,4);
+                            break;
+                        case "Katana":
+                            ctx.scale(1,2);
+                            // Blade
+                            ctx.strokeStyle = "#ffffff";
+                            ctx.lineWidth = 4;
+                            ctx.beginPath();
+                            ctx.moveTo(0,-30);
+                            ctx.quadraticCurveTo(8,-10,0,20);
+                            ctx.stroke();
+                            // Handle
+                            ctx.fillStyle="#654321";
+                            ctx.fillRect(-3,20,6,12);
+                            break;
+                        case "Knife":
+                            ctx.scale(1,2);
+                            // Blade
+                            ctx.fillStyle="#cccccc";
+                            ctx.beginPath();
+                            ctx.moveTo(0,-18);
+                            ctx.lineTo(7,0);
+                            ctx.lineTo(-7,0);
+                            ctx.fill();
+                            // Handle
+                            ctx.fillStyle="#5b3a29";
+                            ctx.fillRect(-3,0,6,12);
+                            break;
+                        case "Steel Rod":
+                            ctx.scale(1,2);
+                            ctx.fillStyle="#777777";
+                            ctx.fillRect(-3,-28,6,56);
+                            break;
+                        case "Med Kit":
+                            ctx.scale(1.3,1.3);
+                            ctx.fillStyle="lime";
+                            ctx.fillRect(-14,-14,28,28);
+                            ctx.fillStyle="white";
+                            ctx.fillRect(-3,-10,6,20);
+                            ctx.fillRect(-10,-3,20,6);
+                            ctx.scale(3,3);
+                            break;
+                    }
+                    ctx.restore();
+                });
+            }
+        }
+        const weaponManager = new WeaponManager();
+        /** ====================
+         * Player Entity Class
+         * Handles physics, combat logic, state machines, and dynami skeletal rendering.
+         * ==================== */
+        class Player {
+            constructor(id, x, color, keybinds) {
+                this.id = id;
+                this.pos = new Vector2(x, CONFIG.GROUND_Y);
+                this.vel = new Vector2(0, 0);
+                this.color = color;
+                this.keys = keybinds;
+                
+                // Stats
+                this.hp = CONFIG.MAX_HP;
+                this.stamina = CONFIG.MAX_STAM;
+                
+                // States
+                this.facing = id === 1 ? 1 : -1;
+                this.onGround = false;
+                this.isCrouching = false;
+                this.isMoving = false;
+                
+                // Combat & Action Timers
+                this.attackFrames = 0;
+                this.dashFrames = 0;
+                this.hitStunFrames = 0;
+                this.blockStunFrames = 0;
+                this.isBlocking = false;
+                
+                // Metatags
+                this.animTick = 0;
+                this.comboCount = 0;
+                this.comboTimer = 0;
+                this.hasHitThisSwing = false;
+                this.afterimages = []; // Stores past positions for Dash Ghosting
+
+                // Scaled bounds
+                this.width = 30 * CONFIG.CHAR_SCALE;
+                this.height = 70 * CONFIG.CHAR_SCALE;
+                this.currentWeapon = {
+                    name: "Fists",
+                    damage: 5,
+                    reach: 35,
+                    attackFrames: 16,
+                    stamina: 5,
+                    knockback: 2
+                };
+            }
+
+            reset(x) {
+                this.pos = new Vector2(x, CONFIG.GROUND_Y);
+                this.vel = new Vector2(0, 0);
+                this.hp = CONFIG.MAX_HP;
+                this.stamina = CONFIG.MAX_STAM;
+                this.facing = this.id === 1 ? 1 : -1;
+                this.attackFrames = 0;
+                this.dashFrames = 0;
+                this.hitStunFrames = 0;
+                this.blockStunFrames = 0;
+                this.comboCount = 0;
+                this.afterimages = [];
+            }
+
+            update(opponent) {
+                if (currentState !== GAME_STATES.PLAYING) return;
+
+                // Combo Decay
+                if (this.comboTimer > 0) this.comboTimer--;
+                else this.comboCount = 0;
+
+                // Save frame state for afterimages if dashing
+                if (this.dashFrames > 0) {
+                    this.afterimages.push({
+                        x: this.pos.x, y: this.pos.y, 
+                        facing: this.facing, 
+                        tick: this.dashFrames,
+                        crouch: this.isCrouching
+                    });
+                    if (this.afterimages.length > 8) this.afterimages.shift();
+                } else if (this.afterimages.length > 0) {
+                    this.afterimages.shift(); // Gradually fade out trails when dash ends
+                }
+
+                // 1. STUN PRIORITIES (Cannot act)
+                if (this.hitStunFrames > 0) {
+                    this.hitStunFrames--;
+                    this.applyPhysics();
+                    return; 
+                }
+                if (this.blockStunFrames > 0) {
+                    this.blockStunFrames--;
+                    this.applyPhysics();
+                    return;
+                }
+
+                // 2. DASH STATE (Overrides normal movement/gravity)
+                if (this.dashFrames > 0) {
+                    this.dashFrames--;
+                    this.vel.x = this.facing * CONFIG.DASH_SPEED;
+                    this.vel.y = 0; // Suspend gravity
+                    
+                    // VFX Sparks during dash
+                    if (this.dashFrames % 2 === 0) {
+                        VFX.particles.push(new Particle(
+                            this.pos.x - (this.facing * 20), this.pos.y - 30, 
+                            -this.facing * Math.random() * 5, (Math.random()-0.5)*5, 
+                            this.color, 15, Math.random()*4+2, 0, 0.8
+                        ));
+                    }
+                    this.applyPhysics();
+                    return; 
+                }
+
+                // Stamina Regeneration (Idle)
+                if (this.attackFrames === 0 && !this.isBlocking) {
+                    this.stamina = Math.min(CONFIG.MAX_STAM, this.stamina + CONFIG.STAM_REGEN);
+                }
+
+                // 3. INPUT GATHERING
+                this.isBlocking = Input.isActionDown(this.id, this.keys.block, 'block') && this.onGround && this.stamina > 0;
+                this.isCrouching = Input.isActionDown(this.id, this.keys.down, 'down') && this.onGround;
+                
+                // Movement Logic
+                if (this.isBlocking) {
+                    this.stamina -= CONFIG.BLOCK_COST;
+                    this.vel.x = 0;
+                } else if (!this.isCrouching && this.attackFrames === 0) {
+                    this.isMoving = false;
+                    this.vel.x = 0;
+                    if (Input.isActionDown(this.id, this.keys.left, 'left') && this.pos.x > CONFIG.LEFT_BOUND) {
+                        this.vel.x = -CONFIG.MOVE_SPEED;
+                        this.facing = -1;
+                        this.isMoving = true;
+                    }
+                    if (Input.isActionDown(this.id, this.keys.right, 'right') && this.pos.x < CONFIG.RIGHT_BOUND) {
+                        this.vel.x = CONFIG.MOVE_SPEED;
+                        this.facing = 1;
+                        this.isMoving = true;
+                    }
+                }
+
+                // Jump
+                if (Input.isActionDown(this.id, this.keys.up, 'up') && this.onGround && !this.isBlocking && this.attackFrames === 0) {
+                    this.vel.y = CONFIG.JUMP_FORCE;
+                    this.onGround = false;
+                    Audio.jump();
+                    VFX.spawnDust(this.pos.x, this.pos.y, true);
+                }
+
+                // Dash Initialization
+                if (Input.isActionPressed(this.id, this.keys.dash, 'dash') && this.stamina >= CONFIG.DASH_COST && this.dashFrames === 0 && this.attackFrames === 0) {
+                    this.dashFrames = CONFIG.DASH_DURATION;
+                    this.stamina -= CONFIG.DASH_COST;
+                    Audio.dash();
+                    VFX.spawnDust(this.pos.x, this.pos.y, true);
+                    VFX.triggerSpeedLines(this.facing);
+                }
+
+                // Attack Initialization
+                if (
+                    Input.isActionPressed(this.id, this.keys.attack, 'attack') &&
+                    this.attackFrames === 0 &&
+                    this.stamina >= this.currentWeapon.stamina
+                ) {
+                    this.attackFrames = this.currentWeapon.attackFrames;
+                    this.stamina -= this.currentWeapon.stamina;
+                    this.hasHitThisSwing = false;
+                    Audio.swing();
+                }
+
+                // Attack Active Frames & Hit Detection
+                if (this.attackFrames > 0) {
+                    this.vel.x *= 0.5; // Drag while swinging
+                    this.attackFrames--;
+                    
+                    // Sword is dangerous between frame 18 and 8
+                    const progress = 
+                        this.attackFrames / this.currentWeapon.attackFrames;
+                    if (
+                        progress < 0.75 &&
+                        progress > 0.25 &&
+                        !this.hasHitThisSwing
+                    ) {
+                        this.checkHitbox(opponent);
+                    }
+                }
+
+                this.applyPhysics();
+            }
+
+            applyPhysics() {
+                // Apply Gravity
+                this.vel.y += CONFIG.GRAVITY;
+                this.pos = this.pos.add(this.vel);
+
+                let wasOnGround = this.onGround;
+                this.onGround = false;
+
+                // Main Floor Collision
+                if (this.pos.y >= CONFIG.GROUND_Y) {
+                    this.pos.y = CONFIG.GROUND_Y;
+                    this.vel.y = 0;
+                    this.vel.x *= 0.8; // Friction
+                    this.onGround = true;
+                }
+
+                // Floating Platforms Collision
+                World.platforms.forEach(plat => {
+                    // Only land if falling downwards through the top edge
+                    if (this.vel.y > 0 && 
+                        this.pos.y >= plat.y && 
+                        this.pos.y - this.vel.y <= plat.y && 
+                        this.pos.x + this.width/2 > plat.x && 
+                        this.pos.x - this.width/2 < plat.x + plat.w) {
+                        
+                        this.pos.y = plat.y;
+                        this.vel.y = 0;
+                        this.vel.x *= 0.8;
+                        this.onGround = true;
+                    }
+                });
+
+                // Landing Dust
+                if (!wasOnGround && this.onGround && this.vel.y > 6) {
+                    VFX.spawnDust(this.pos.x, this.pos.y, true);
+                }
+
+                // Keep player inside mad boundaries
+                if (this.pos.x < CONFIG.LEFT_BOUND) {
+                    this.pos.x = CONFIG.LEFT_BOUND;
+                    this.vel.x = 0;
+                }
+                if (this.pos.x > CONFIG.RIGHT_BOUND) {
+                    this.pos.x = CONFIG.RIGHT_BOUND;
+                    this.vel.x = 0;
+                }
+
+                // Animation Cycle
+                if (this.isMoving && this.onGround) this.animTick += 0.45;
+                else this.animTick = 0;
+            }
+
+            checkHitbox(opponent) {
+                let dx = Math.abs(this.pos.x - opponent.pos.x);
+                let dy = Math.abs(this.pos.y - opponent.pos.y);
+                
+                // Weapon Reach
+                let heightReach = 70 * CONFIG.CHAR_SCALE;
+                
+                // Must be facing opponent
+                let isFacingRightWay = (this.facing === 1 && this.pos.x < opponent.pos.x) || 
+                                       (this.facing === -1 && this.pos.x > opponent.pos.x);
+
+                if (dx < this.currentWeapon.reach && dy < heightReach && isFacingRightWay) {
+                    this.hasHitThisSwing = true;
+                    this.resolveImpact(opponent);
+                }
+            }
+
+            resolveImpact(victim) {
+                let victimFacingMe = (victim.facing === 1 && victim.pos.x < this.pos.x) || 
+                                     (victim.facing === -1 && victim.pos.x > this.pos.x);
+
+                if (victim.isBlocking && victimFacingMe && victim.stamina > 20) {
+                    // --- BLOCK ---
+                    Audio.block();
+                    victim.stamina -= 30; // Drain stamina
+                    victim.vel.x = this.facing * 6; // Block pushback
+                    victim.blockStunFrames = CONFIG.BLOCK_STUN_FRAMES;
+                    
+                    // Effects
+                    VFX.spawnBlock(victim.pos.x + (this.facing * 15), victim.pos.y - 40);
+                    VFX.addText(victim.pos.x, victim.pos.y - 70, "GUARD", "#00e5ff", 18);
+                    screenShake = 3; // Light shake
+                    
+                } else {
+                    // --- DIRECT HIT ---
+                    this.comboCount++;
+                    this.comboTimer = 150; // 2.5 seconds to combo
+                    let isHeavy = this.comboCount % 3 === 0; // Every 3rd hit is heavy
+
+                    let dmg = this.currentWeapon.damage;
+
+                    if (isHeavy) dmg *= 1.5;
+
+                    Audio.hit(isHeavy);
+                    
+                    victim.hp -= dmg;
+                    // Knockback math
+                    victim.vel.x = this.facing * (6 + (this.comboCount * 0.5)); 
+                    victim.vel.y = isHeavy ? -8 : -4; 
+                    
+                    victim.hitStunFrames = CONFIG.HIT_STUN_FRAMES + (isHeavy ? 10 : 0);
+                    victim.onGround = false;
+                    victim.dashFrames = 0; // Cancel victim dash
+                    victim.attackFrames = 0; // Cancel victim attack
+                    
+                    // Brutal Effects
+                    screenShake = isHeavy ? 15 : 5; // Dynamic screen shake
+                    VFX.spawnHit(victim.pos.x, victim.pos.y - 40, victim.color, isHeavy);
+                    VFX.addText(victim.pos.x, victim.pos.y - 80, `-${Math.floor(dmg)}`, "#ff2a2a", 26 + (isHeavy ? 10 : 0));
+                    
+                    if (this.comboCount > 1) {
+                        VFX.addText(this.pos.x, this.pos.y - 110, `${this.comboCount} HITS!`, "#ffcc00", 30);
+                    }
+
+                    // Check Game Over
+                    if (victim.hp <= 0) {
+                        victim.hp = 0;
+                        Audio.death();
+                        triggerGameOver(this.id);
+                    }
+                }
+            }
+
+            /** ====================
+             * Rendering Engine for Stickman
+             * Includes Dynamic bones, rotation based on state, and afterimage ghosting.
+             * ==================== */
+            draw(ctx) {
+                // Draw Ghost Afterimages FIRST (so they appear behind the player)
+                if (this.afterimages.length > 0) {
+                    this.afterimages.forEach((ghost, index) => {
+                        let alpha = (index + 1) / this.afterimages.length;
+                        ctx.save();
+                        ctx.translate(ghost.x, ghost.y);
+                        ctx.scale(ghost.facing * CONFIG.CHAR_SCALE, CONFIG.CHAR_SCALE);
+                        ctx.globalAlpha = alpha * 0.4;
+                        this.renderSkeleton(ctx, ghost.crouch, true, ghost.tick); // Force dash pose
+                        ctx.restore();
+                    });
+                }
+
+                // Draw Main Body
+                ctx.save();
+                ctx.translate(this.pos.x, this.pos.y);
+
+                // Flashing during Hit Stun
+                if (this.hitStunFrames > 0 && Math.floor(frameCount / 3) % 2 === 0) {
+                    ctx.globalAlpha = 0.2;
+                }
+
+                ctx.scale(this.facing * CONFIG.CHAR_SCALE, CONFIG.CHAR_SCALE);
+
+                // Shield visuals
+                if (this.isBlocking) {
+                    ctx.strokeStyle = "rgba(0, 229, 255, 0.7)";
+                    ctx.lineWidth = 5;
+                    ctx.beginPath();
+                    ctx.arc(15, -40, 30, -Math.PI/1.3, Math.PI/1.3);
+                    ctx.stroke();
+                }
+
+                // Call internal renderer
+                this.renderSkeleton(ctx, this.isCrouching, this.dashFrames > 0, null);
+                
+                ctx.restore();
+            }
+
+            renderSkeleton(ctx, isCrouching, isDashing, dashTick) {
+                ctx.strokeStyle = this.color;
+                if (isCrouching && !isDashing) {
+                    ctx.translate(0, 10);
+                    ctx.rotate(-0.25);
+                }
+                ctx.lineWidth = 6.5;
+                ctx.lineCap = "round";
+                ctx.lineJoin = "round";
+
+                const crouchY = isCrouching ? 28 : 0;
+
+                // --- GLOBAL ROTATION FOR DASHING ---
+                if (isDashing) {
+                    // Lean forward sharply when dashing
+                    ctx.translate(0, -30); // Rotate from hips
+                    ctx.rotate(Math.PI / 4.5); // Lean angle
+                    ctx.translate(0, 30);
+                }
+
+                // START ANATOMY
+                ctx.beginPath();
+                
+                // Head
+                ctx.arc(0, (isCrouching ? -52 : -65) + crouchY, 13, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Spine
+                ctx.beginPath();
+                ctx.moveTo(0, -52 + crouchY);
+                ctx.lineTo(0, -22 + crouchY);
+                ctx.stroke();
+
+                // Arms
+                let armBaseY = -42 + crouchY;
+                ctx.beginPath();
+                
+                if (this.attackFrames > 0 || this.isBlocking) {
+                    // Front arm holding sword
+                    ctx.moveTo(0, armBaseY); ctx.lineTo(5, -38 + crouchY); 
+                    // Back arm bracing/balancing
+                    ctx.moveTo(0, armBaseY); ctx.lineTo(-18, armBaseY + 12);
+                } else if (this.hitStunFrames > 0) {
+                    // Flailing from impact
+                    ctx.moveTo(0, armBaseY); ctx.lineTo(-25, -60);
+                    ctx.moveTo(0, armBaseY); ctx.lineTo(15, -65);
+                } else if (isDashing) {
+                    // Ninja Dash Arms - trailing straight back
+                    ctx.moveTo(0, armBaseY); ctx.lineTo(-25, armBaseY - 15); // Back arm
+                    ctx.moveTo(0, armBaseY); ctx.lineTo(-15, armBaseY - 5);  // Front arm
+                } else if (isCrouching) {
+                    // Defensive crouch arms
+                    ctx.moveTo(0, armBaseY);
+                    ctx.lineTo(-18, armBaseY + 18);
+
+                    ctx.moveTo(0, armBaseY);
+                    ctx.lineTo(18, armBaseY + 12);
+                } else {
+                    // Running / Idle Arms
+                    let armSway = this.isMoving ? Math.sin(this.animTick) * 22 : 6;
+                    ctx.moveTo(0, armBaseY); ctx.lineTo(-armSway - 12, armBaseY + 18); // Back arm
+                    ctx.moveTo(0, armBaseY); ctx.lineTo(armSway + 12, armBaseY + 18);  // Front arm
+                }
+                ctx.stroke();
+
+                // Legs
+                let legBaseY = -22 + crouchY;
+                ctx.beginPath();
+                
+                if (isDashing) {
+                    // Ninja Dash Legs - Wide split stance
+                    ctx.moveTo(0, legBaseY); ctx.lineTo(-22, -8); // Back leg trails high
+                    ctx.moveTo(0, legBaseY); ctx.lineTo(20, -5);  // Front leg reaches forward
+                } else if (!this.onGround) {
+                    // Jump/Fall Pose
+                    if (this.vel.y < 0) {
+                        ctx.moveTo(0, legBaseY); ctx.lineTo(-15, -5); // Tucked
+                        ctx.moveTo(0, legBaseY); ctx.lineTo(15, -10);
+                    } else {
+                        ctx.moveTo(0, legBaseY); ctx.lineTo(-10, 5);  // Extended falling
+                        ctx.moveTo(0, legBaseY); ctx.lineTo(10, 10);
+                    }
+                } else if (isCrouching) {
+                      // Deep crouch
+                      ctx.moveTo(0, legBaseY);
+                      ctx.lineTo(-18, -5);
+                      ctx.lineTo(-25, 12);
+
+                      ctx.moveTo(0, legBaseY);
+                      ctx.lineTo(18, -5);
+                      ctx.lineTo(25, 12);
+                } else if (this.hitStunFrames > 0) {
+                    // Knockback Pose
+                    ctx.moveTo(0, legBaseY); ctx.lineTo(-18, -5);
+                    ctx.moveTo(0, legBaseY); ctx.lineTo(8, -2);
+                } else {
+                    // Run/Idle Legs
+                    let legSway = this.isMoving ? Math.sin(this.animTick) * 22 : 0;
+                    ctx.moveTo(0, legBaseY); ctx.lineTo(legSway - 12, 0);
+                    ctx.moveTo(0, legBaseY); ctx.lineTo(-legSway + 12, 0);
+                }
+                ctx.stroke();
+
+                // Draw Equipped Weapon
+                if (this.currentWeapon.name != "Fists") {
+                    ctx.save();
+                    // Right hand
+                    ctx.translate(8,-38);
+                    // Swing animation
+                    let angle = 0;
+                    if (this.attackFrames > 0) {
+                        let progress = 1 - (this.attackFrames / this.currentWeapon.attackFrames);
+                        angle = -120 + progress * 170;
+                    }
+                    else {
+                        angle = -35;
+                    }
+                    ctx.rotate (angle * Math.PI / 180);
+                    switch (this.currentWeapon.name) {
+                         case "Sword":
+                            ctx.fillStyle="#8b5a2b";
+                            ctx.fillRect(-3,-6,6,20);
+                            ctx.fillStyle="#dddddd";
+                            ctx.fillRect(0,-3,90,6);
+                            break;
+                        case "Katana":
+                            ctx.fillStyle="#654321";
+                            ctx.fillRect(-3,-6,6,20);
+                            ctx.strokeStyle="white";
+                            ctx.lineWidth=4;
+                            ctx.beginPath();
+                            ctx.moveTo(0,0);
+                            ctx.quadraticCurveTo(55,-10,100,-25);
+                            ctx.stroke();
+                            break;
+                        case "Knife":
+                            ctx.fillStyle = "#222";
+                            ctx.fillRect(4, -2, 12, 4);
+                            ctx.fillStyle = "#dddddd";
+                            ctx.beginPath();
+                            ctx.moveTo(16, -3);
+                            ctx.lineTo(34, 0);
+                            ctx.lineTo(16, 3);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.strokeStyle = "#ffffff";
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(16, 0);
+                            ctx.lineTo(34, 0);
+                            ctx.stroke();
+                            break;
+                        case "Steel Rod":
+                            ctx.fillStyle="#777";
+                            ctx.fillRect(0,-3,85,6);
+                            break;
+                    }
+                    ctx.restore();
+                }
+
+                // Eyes (Directional)
+                ctx.fillStyle = "#fff";
+                ctx.beginPath();
+                if (this.hitStunFrames > 0) {
+                    // X Eyes on hit
+                    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5;
+                    let ey = -67 + crouchY;
+                    ctx.moveTo(2, ey-4); ctx.lineTo(10, ey+4);
+                    ctx.moveTo(10, ey-4); ctx.lineTo(2, ey+4);
+                    ctx.stroke();
+                } else if (isDashing) {
+                    // Slit eyes during dash (intense)
+                    ctx.fillRect(4, -68 + crouchY, 6, 2);
+                } else {
+                    // Normal dot eyes
+                    ctx.arc(5, -67 + crouchY, 2.5, 0, Math.PI*2);
+                    ctx.arc(12, -67 + crouchY, 2.5, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // --- Initialization ---
+        // P1: W A S D | P2: I J K L
+        const p1 = new Player(1, 200, "#00e5ff", { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", attack: "Space", dash: "KeyQ", block: "KeyE" });
+        const p2 = new Player(2, 900, "#ff3366", { up: "KeyI", down: "KeyK", left: "KeyJ", right: "KeyL", attack: "Enter", dash: "KeyU", block: "KeyO" });
+        
+        let camera = new Vector2(550, 0);
+
+        function startGame() {
+            Audio.init();
+            Audio.uiBlip();
+            currentState = GAME_STATES.PLAYING;
+            UI.menu.classList.add("hidden");
+            UI.hud.classList.remove("hidden");
+            UI.gameOver.classList.add("hidden");
+        }
+
+        function resetGame() {
+            p1.reset(200);
+            p2.reset(900);
+            VFX.clear();
+            screenShake = 0;
+            currentState = GAME_STATES.PLAYING;
+            UI.gameOver.classList.add("hidden");
+            UI.hud.classList.remove("hidden");
+            Audio.uiBlip();
+        }
+
+         function triggerGameOver(winnerId) {
+            currentState = GAME_STATES.GAME_OVER;
+            UI.hud.classList.add("hidden");
+            UI.gameOver.classList.remove("hidden");
+            UI.winnerText.innerText = `PLAYER ${winnerId} WINS!`;
+            UI.winnerText.style.color = winnerId === 1 ? p1.color : p2.color;
+        }
+
+        /** ====================
+         * Updates DOM UI Elements (Health, Stamina, Combos)
+         * ==================== */
+        function updateDOMUI() {
+            if (currentState !== GAME_STATES.PLAYING) return;
+            
+            // Bars
+            UI.bars.p1hp.style.width = `${Math.max(0, (p1.hp / CONFIG.MAX_HP) * 100)}%`;
+            UI.bars.p2hp.style.width = `${Math.max(0, (p2.hp / CONFIG.MAX_HP) * 100)}%`;
+            UI.bars.p1st.style.width = `${Math.max(0, (p1.stamina / CONFIG.MAX_STAM) * 100)}%`;
+            UI.bars.p2st.style.width = `${Math.max(0, (p2.stamina / CONFIG.MAX_STAM) * 100)}%`;
+            
+            // Combo Counters
+            if (p1.comboCount > 1) {
+                UI.combos.p1.innerText = `${p1.comboCount} HITS!`;
+                UI.combos.p1.style.opacity = p1.comboTimer / 150;
+                UI.combos.p1.style.transform = `scale(${1 + (p1.comboCount * 0.05)})`;
+            } else UI.combos.p1.innerText = "";
+
+            if (p2.comboCount > 1) {
+                UI.combos.p2.innerText = `${p2.comboCount} HITS!`;
+                UI.combos.p2.style.opacity = p2.comboTimer / 150;
+                UI.combos.p2.style.transform = `scale(${1 + (p2.comboCount * 0.05)})`;
+            } else UI.combos.p2.innerText = "";
+        }
+
+        /** ====================
+         * Main Game Loop
+         * Orchestrates input, physics, logic, camera, and drawing every frame.
+         * ==================== */
+        function loop() {
+            frameCount++;
+
+            // 1. Clear Frame
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Camera Logic & Screen Shake
+            const midpoint = (p1.pos.x + p2.pos.x) / 2;
+            const targetCamX = (canvas.width / 2) - midpoint;
+            camera.x += (targetCamX - camera.x) * CONFIG.CAMERA_SMOOTHING;
+            
+            const distance = Math.abs(p1.pos.x - p2.pos.x);
+            let zoom = Math.max(0.65, Math.min(1.15, 1000 / (distance + 400)));
+
+            // Apply Shake Decay
+            if (screenShake > 0) screenShake *= 0.85;
+            if (screenShake < 0.5) screenShake = 0;
+            let shakeX = (Math.random() - 0.5) * screenShake * 2;
+            let shakeY = (Math.random() - 0.5) * screenShake * 2;
+
+            // 3. Setup Canvas Transform
+            ctx.save();
+            ctx.translate(canvas.width / 2 + shakeX, canvas.height / 2 + shakeY);
+            ctx.scale(zoom, zoom);
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+            ctx.translate(camera.x, camera.y);
+
+            // 4. Update Game Logic
+            World.update();
+            weaponManager.update();
+            if (currentState === GAME_STATES.PLAYING) {
+                p1.update(p2);
+                p2.update(p1);
+            }
+            VFX.update();
+
+            // 5. Render Pipeline
+            World.draw(-camera.x / zoom); // Backgrounds
+            weaponManager.draw(ctx);
+            
+            p1.draw(ctx); // Player 1
+            p2.draw(ctx); // Player 2
+            
+            VFX.drawWorld(ctx); // Particles
+            
+            ctx.restore(); // Pop camera transform
+
+            VFX.drawUI(ctx); // Screen-space effects (Speedlines)
+            
+            // 6. Finalize Frame
+            updateDOMUI();
+            
+            // Single-press checks work correctly!
+            Input.update(); 
+            
+            requestAnimationFrame(loop);
+        }
+
+        // Start Engine
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
